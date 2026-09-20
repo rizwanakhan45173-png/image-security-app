@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Image Security System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand ms-3" href="#">Secure Image Vault</a>
+    <div class="d-flex align-items-center">
+      <span class="navbar-text me-3 text-white">Welcome, {{ username }}!</span>
+      <a href="{{ url_for('audit_history') }}" class="btn btn-outline-light me-2 btn-sm">Audit Logs</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm me-3">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container my-4">
+  
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="row">
+    <!-- Encrypt Image Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">Encrypt Image</h5>
+        </div>
+        <div class="card-body">
+          <form action="{{ url_for('encrypt_image') }}" method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label">Choose File</label>
+              <input type="file" name="image" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Secret Passphrase</label>
+              <input type="password" name="passphrase" class="form-control" placeholder="Enter Secret Passphrase" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Encrypt Image</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decrypt Image Card -->
+    <div class="col-md-6 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-success text-white">
+          <h5 class="card-title mb-0">Decrypt Image</h5>
+        </div>
+        <div class="card-body">
+          <form action="{{ url_for('decrypt_image') }}" method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label">Choose File</label>
+              <input type="file" name="image" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Secret Passphrase</label>
+              <input type="password" name="passphrase" class="form-control" placeholder="Enter Secret Passphrase" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Decrypt Image</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unified Encryption & Decryption Activity Table -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0">Your Encryption & Decryption History</h5>
+      <!-- Clear All History Button -->
+      <form action="{{ url_for('clear_audit_logs') }}" method="POST" class="m-0">
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete ALL history logs?');">
+          Clear All History
+        </button>
+      </form>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Action Type</th>
+            <th>Filename</th>
+            <th>Status</th>
+            <th>Date & Time</th>
+            <th class="text-center">Action</th> <!-- Added Action Column -->
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in history %}
+          <tr>
+            <td>
+              {% if item.action == 'ENCRYPT' or item.action_type == 'ENCRYPT' %}
+                <span class="badge bg-primary">ENCRYPTED</span>
+              {% else %}
+                <span class="badge bg-success">DECRYPTED</span>
+              {% endif %}
+            </td>
+            <td><code>{{ item.filename }}</code></td>
+            <td>
+              {% if item.status == 'SUCCESS' %}
+                <span class="text-success fw-bold">SUCCESS</span>
+              {% else %}
+                <span class="text-danger fw-bold">FAILED</span>
+              {% endif %}
+            </td>
+            <td>{{ item.timestamp or item.created_at or item.date_time }}</td>
+            <td class="text-center">
+              <!-- Single Row Delete Form -->
+              <form action="{{ url_for('delete_audit_log', log_id=item.id) }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this record?');">
+                  Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="text-center text-muted p-3">No activity found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"></script>
+</body>
+</html>
