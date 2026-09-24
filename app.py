@@ -1,5 +1,6 @@
 import os
 import hashlib
+import traceback
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 import pymysql.cursors
 from cryptography.fernet import Fernet
@@ -254,6 +255,9 @@ def forgot_password():
             conn.close()
             flash('If that email exists in our system, a reset link has been processed.', 'info')
         except Exception as e:
+            print("--- FORGOT PASSWORD ERROR ---")
+            traceback.print_exc()
+            print("-----------------------------")
             flash(f'ERROR FOUND: {str(e)}', 'danger')
 
         return redirect(url_for('login'))
