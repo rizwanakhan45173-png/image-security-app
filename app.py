@@ -20,10 +20,11 @@ mail = Mail(app)
 app.secret_key = 'super_secret_image_vault_key'
 
 # MySQL Configuration
-DB_HOST = 'localhost'
-DB_USER = 'root'
-DB_PASSWORD = 'root'  # Enter your MySQL root password here if you set one
-DB_NAME = 'image_security_db'
+# MySQL Configuration (reads from Render environment variables)
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_USER = os.environ.get('DB_USER', 'root')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'root')
+DB_NAME = os.environ.get('DB_DATABASE', 'test')
 
 # Directory to save encrypted files
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
