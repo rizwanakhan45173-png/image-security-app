@@ -230,32 +230,32 @@ def logout():
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-            user = cursor.fetchone()
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+                user = cursor.fetchone()
 
-            if user:
-                token = secrets.token_urlsafe(32)
-                expires_at = datetime.now() + timedelta(hours=1)
-                
-                cursor.execute(
-                    "INSERT INTO reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
-                    (user['id'], token, expires_at)
-                )
-                conn.commit()
+                if user:
+                    token = secrets.token_urlsafe(32)
+                    expires_at = datetime.now() + timedelta(hours=1)
+                    
+                    cursor.execute(
+                        "INSERT INTO reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                        (user['id'], token, expires_at)
+                    )
 
-                reset_url = url_for('reset_password', token=token, _external=True)
-                
-                try:
+                    reset_url = url_for('reset_password', token=token, _external=True)
+                    
                     msg = Message("Password Reset Request", sender=app.config['MAIL_USERNAME'], recipients=[email])
                     msg.body = f"Click the link to reset your password: {reset_url}\n\nLink expires in 1 hour."
                     mail.send(msg)
-                except Exception as e:
-                    app.logger.error(f"Failed to send email: {e}")
 
-        conn.close()
-        flash('If that email exists in our system, a reset link has been processed.', 'info')
+            conn.close()
+            flash('If that email exists in our system, a reset link has been processed.', 'info')
+        except Exception as e:
+            flash(f'ERROR FOUND: {str(e)}', 'danger')
+
         return redirect(url_for('login'))
 
     return render_template('forgot_password.html')
