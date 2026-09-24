@@ -1,6 +1,6 @@
 import os
 import hashlib
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, after_this_request
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, after_this_request, send_from_directory
 import pymysql.cursors
 from cryptography.fernet import Fernet
 import base64
@@ -9,17 +9,16 @@ from datetime import datetime, timedelta
 from flask_mail import Mail, Message
 
 app = Flask(__name__)
-app.config['SERVER_NAME'] = 'random-entitle-filing.ngrok-free.dev'
+
 # Mail Configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'rizwanakhan45173@gmail.com'      # Replace with your email
-app.config['MAIL_PASSWORD'] = 'ykuh eamo yztl rove'         # Replace with App Password
+app.config['MAIL_PASSWORD'] = 'ykuh eamo yztl rove'          # Replace with App Password
 mail = Mail(app)
 app.secret_key = 'super_secret_image_vault_key'
 
-# MySQL Configuration
 # MySQL Configuration (reads from Render environment variables)
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
 DB_USER = os.environ.get('DB_USERNAME', 'root')
@@ -119,7 +118,7 @@ def dashboard():
         return redirect(url_for('login'))
 
     conn = get_db_connection()
-    cursor = conn.cursor(pymysql.cursors.DictCursor) # DictCursor ensures column names like filename, status, timestamp work in Jinja
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
 
     # Fetch history records for current user
     cursor.execute("SELECT * FROM audit_logs WHERE user_id = %s ORDER BY timestamp DESC", (session['user_id'],))
@@ -128,7 +127,6 @@ def dashboard():
     cursor.close()
     conn.close()
 
-    # Make sure 'history' is passed here!
     return render_template('dashboard.html', username=session.get('username'), history=history_logs)
 
 @app.route('/encrypt_image', methods=['POST'])
@@ -155,7 +153,6 @@ def encrypt_image():
         with open(file_path, 'wb') as f:
             f.write(encrypted_data)
 
-        # Hash passphrase for database audit storage
         passphrase_hash = hashlib.sha256(passphrase.encode()).hexdigest()
 
         conn = get_db_connection()
@@ -166,7 +163,7 @@ def encrypt_image():
             )
         conn.close()
 
-        log_action(session['user_id'], 'ENCRYPT', filename, 'SUCCESS')
+        log_action(session['user_id'], 'ENCRYPT', encrypted_filename, 'SUCCESS')
         flash('Image encrypted and vault updated successfully!', 'success')
     except Exception as e:
         log_action(session['user_id'], 'ENCRYPT', filename, 'FAILED')
@@ -193,14 +190,12 @@ def decrypt_image():
         fernet = Fernet(generate_fernet_key(passphrase))
         decrypted_data = fernet.decrypt(encrypted_data)
 
-        # Save decrypted file temporarily for download
         decrypted_filename = f"dec_{filename.replace('enc_', '')}"
         decrypted_path = os.path.join(UPLOAD_FOLDER, decrypted_filename)
 
         with open(decrypted_path, 'wb') as f:
             f.write(decrypted_data)
 
-        # Hook to delete the temporary file AFTER the user finishes downloading it
         @after_this_request
         def remove_file(response):
             try:
@@ -240,7 +235,6 @@ def logout():
     flash('Logged out successfully.', 'info')
     return redirect(url_for('login'))
 
-
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -262,9 +256,6 @@ def forgot_password():
 
                 reset_url = url_for('reset_password', token=token, _external=True)
                 
-                # Print reset link to Command Prompt terminal for easy local testing
-                print(f"\n[DEBUG] Password Reset URL: {reset_url}\n")
-
                 try:
                     msg = Message("Password Reset Request", sender=app.config['MAIL_USERNAME'], recipients=[email])
                     msg.body = f"Click the link to reset your password: {reset_url}\n\nLink expires in 1 hour."
@@ -277,7 +268,6 @@ def forgot_password():
         return redirect(url_for('login'))
 
     return render_template('forgot_password.html')
-
 
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
@@ -306,9 +296,6 @@ def reset_password(token):
     conn.close()
     return render_template('reset_password.html', token=token)
 
-# ==========================================
-# 1. DELETE SINGLE AUDIT LOG (audit_logs)
-# ==========================================
 @app.route('/delete_audit_log/<int:log_id>', methods=['POST'])
 def delete_audit_log(log_id):
     if 'user_id' not in session:
@@ -324,10 +311,6 @@ def delete_audit_log(log_id):
     flash("Audit log entry deleted successfully!", "success")
     return redirect(url_for('dashboard'))
 
-
-# ==========================================
-# 2. CLEAR ALL AUDIT LOGS (audit_logs)
-# ==========================================
 @app.route('/clear_audit_logs', methods=['POST'])
 def clear_audit_logs():
     if 'user_id' not in session:
@@ -343,49 +326,17 @@ def clear_audit_logs():
     flash("All audit logs cleared!", "success")
     return redirect(url_for('dashboard'))
 
-
-# ==========================================
-# 3. DELETE SINGLE IMAGE HISTORY (encrypted_images)
-# ==========================================
-@app.route('/delete_image_history/<int:image_id>', methods=['POST'])
-def delete_image_history(image_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM encrypted_images WHERE id = %s AND user_id = %s", (image_id, session['user_id']))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    flash("Encrypted image record deleted successfully!", "success")
-    return redirect(url_for('dashboard'))
-
-
-# ==========================================
-# 4. CLEAR ALL IMAGE HISTORY (encrypted_images)
-# ==========================================
-@app.route('/clear_image_history', methods=['POST'])
-def clear_image_history():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM encrypted_images WHERE user_id = %s", (session['user_id'],))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    flash("All image records cleared!", "success")
-    return redirect(url_for('dashboard'))
-    
 @app.route('/download/<filename>')
 def download_file(filename):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return send_from_directory('uploads', filename, as_attachment=True)
     
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    if not os.path.exists(file_path):
+        flash("The requested file is no longer available on the server storage.", "danger")
+        return redirect(url_for('dashboard'))
+        
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+      
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
