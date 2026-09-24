@@ -1,6 +1,6 @@
 import os
 import hashlib
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, after_this_request, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 import pymysql.cursors
 from cryptography.fernet import Fernet
 import base64
@@ -25,7 +25,7 @@ DB_USER = os.environ.get('DB_USERNAME', 'root')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'root')
 DB_NAME = os.environ.get('DB_DATABASE', 'test')
 
-# Directory to save encrypted files
+# Directory to save encrypted and decrypted files
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -184,34 +184,25 @@ def decrypt_image():
         return redirect(url_for('dashboard'))
 
     filename = file.filename
+    decrypted_filename = f"dec_{session['user_id']}_{os.urandom(4).hex()}_{filename.replace('enc_', '')}"
+    decrypted_path = os.path.join(UPLOAD_FOLDER, decrypted_filename)
 
     try:
         encrypted_data = file.read()
         fernet = Fernet(generate_fernet_key(passphrase))
         decrypted_data = fernet.decrypt(encrypted_data)
 
-        decrypted_filename = f"dec_{filename.replace('enc_', '')}"
-        decrypted_path = os.path.join(UPLOAD_FOLDER, decrypted_filename)
-
         with open(decrypted_path, 'wb') as f:
             f.write(decrypted_data)
 
-        @after_this_request
-        def remove_file(response):
-            try:
-                if os.path.exists(decrypted_path):
-                    os.remove(decrypted_path)
-            except Exception as e:
-                app.logger.error(f"Error removing temporary file: {e}")
-            return response
-
-        log_action(session['user_id'], 'DECRYPT', filename, 'SUCCESS')
-        return send_file(decrypted_path, as_attachment=True, download_name=decrypted_filename)
+        log_action(session['user_id'], 'DECRYPT', decrypted_filename, 'SUCCESS')
+        flash('Image decrypted and saved to vault successfully!', 'success')
 
     except Exception:
         log_action(session['user_id'], 'DECRYPT', filename, 'FAILED')
         flash('Decryption failed! Invalid passphrase or corrupted file.', 'danger')
-        return redirect(url_for('dashboard'))
+
+    return redirect(url_for('dashboard'))
 
 @app.route('/audit_history')
 def audit_history():
