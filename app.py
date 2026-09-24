@@ -380,6 +380,12 @@ def clear_image_history():
 
     flash("All image records cleared!", "success")
     return redirect(url_for('dashboard'))
-
+    
+@app.route('/download/<filename>')
+def download_file(filename):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return send_from_directory('uploads', filename, as_attachment=True)
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
