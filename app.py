@@ -226,7 +226,6 @@ def logout():
     session.clear()
     flash('Logged out successfully.', 'info')
     return redirect(url_for('login'))
-
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -248,9 +247,19 @@ def forgot_password():
 
                     reset_url = url_for('reset_password', token=token, _external=True)
                     
-                    msg = Message("Password Reset Request", sender=app.config['MAIL_USERNAME'], recipients=[email])
-                    msg.body = f"Click the link to reset your password: {reset_url}\n\nLink expires in 1 hour."
-                    mail.send(msg)
+                    # Always print the reset link to the server logs so you can copy it
+                    print(f"\n==============================================")
+                    print(f"🔑 PASSWORD RESET LINK FOR: {email}")
+                    print(f"{reset_url}")
+                    print(f"==============================================\n")
+                    
+                    # Safely attempt to send mail, wrapping everything so network blocks won't crash the server
+                    try:
+                        msg = Message("Password Reset Request", sender=app.config['MAIL_USERNAME'], recipients=[email])
+                        msg.body = f"Click the link to reset your password: {reset_url}\n\nLink expires in 1 hour."
+                        mail.send(msg)
+                    except Exception as mail_err:
+                        print(f"SMTP connection blocked/failed (Normal on Render free tier): {mail_err}")
 
             conn.close()
             flash('If that email exists in our system, a reset link has been processed.', 'info')
