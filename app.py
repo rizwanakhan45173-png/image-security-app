@@ -7,17 +7,13 @@ from cryptography.fernet import Fernet
 import base64
 import secrets
 from datetime import datetime, timedelta
-from flask_mail import Mail, Message
+import resend
 
 app = Flask(__name__)
 
-# Mail Configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'rizwanakhan45173@gmail.com'      # Replace with your email
-app.config['MAIL_PASSWORD'] = 'ykuh eamo yztl rove'          # Replace with App Password
-mail = Mail(app)
+# Configure Resend API Key from environment variables
+resend.api_key = os.environ.get('RESEND_API_KEY', '')
+
 app.secret_key = 'super_secret_image_vault_key'
 
 # MySQL Configuration (reads from Render environment variables)
@@ -41,7 +37,6 @@ def get_db_connection():
     )
 
 def generate_fernet_key(passphrase: str) -> bytes:
-    # Derives a deterministic 32-byte key from the user passphrase
     key = hashlib.sha256(passphrase.encode()).digest()
     return base64.urlsafe_b64encode(key)
 
@@ -121,7 +116,6 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-    # Fetch history records for current user
     cursor.execute("SELECT * FROM audit_logs WHERE user_id = %s ORDER BY timestamp DESC", (session['user_id'],))
     history_logs = cursor.fetchall()
 
@@ -248,21 +242,17 @@ def forgot_password():
 
                     reset_url = url_for('reset_password', token=token, _external=True)
                     
-                    # Print reset link to server console logs as a safe fallback
-                    print(f"\n==============================================")
-                    print(f"🔑 PASSWORD RESET LINK FOR: {email}")
-                    print(f"{reset_url}")
-                    print(f"==============================================\n")
-                    
-                    try:
-                        msg = Message("Password Reset Request", sender=app.config['MAIL_USERNAME'], recipients=[email])
-                        msg.body = f"Click the link to reset your password: {reset_url}\n\nLink expires in 1 hour."
-                        mail.send(msg)
-                    except Exception as mail_err:
-                        print(f"SMTP connection blocked/failed (Normal on Render free tier): {mail_err}")
+                    # Send email directly using Resend HTTPS API (bypasses Render SMTP block)
+                    params = {
+                        "from": "onboarding@resend.dev",
+                        "to": [email],
+                        "subject": "Password Reset Request - Image Security App",
+                        "html": f"<p>Hello,</p><p>Click the link below to reset your password:</p><p><a href='{reset_url}'>{reset_url}</a></p><p>This link expires in 1 hour.</p>"
+                    }
+                    resend.Emails.send(params)
 
             conn.close()
-            flash('If that email exists in our system, a reset link has been processed.', 'info')
+            flash('If that email exists in our system, a password reset email has been sent.', 'info')
         except Exception as e:
             print("--- FORGOT PASSWORD ERROR ---")
             traceback.print_exc()
